@@ -106,23 +106,41 @@ public class MyByteBuf {
     }
 
     @Test
-    public void serverTest() throws Exception {
+    public void nettyServerTest() throws Exception {
         NioEventLoopGroup serverGroup = new NioEventLoopGroup(1);
         NioServerSocketChannel server = new NioServerSocketChannel();
         serverGroup.register(server);
         System.out.println("server start");
 // 不定时的会有连接进来。。响应式
         ChannelPipeline pipeline = server.pipeline();
-        pipeline.addLast(new MyAcceptHandler(serverGroup,new MyInHandler()));// accept接收客户端，注册到selector
+        pipeline.addLast(new MyAcceptHandler(serverGroup,new ChannelInit()));// accept接收客户端，注册到selector
 
-
-        ChannelFuture bind = server.bind(new InetSocketAddress(8888));
+        ChannelFuture bind = server.bind(new InetSocketAddress("192.168.3.7",8888));
         bind.sync().channel().closeFuture().sync();
         System.out.println("server close");
     }
 
 }
+
+//这个类是引荐人角色，负责把客户端定义的handler注册到pipeline就完事了，如果不用它，myinhandler就得设计成单例
 @ChannelHandler.Sharable
+class ChannelInit extends ChannelInboundHandlerAdapter {
+    @Override
+    public void channelRegistered(ChannelHandlerContext ctx) throws Exception {
+        Channel client = ctx.channel();
+        ChannelPipeline pipeline = client.pipeline();
+        pipeline.addLast(new MyInHandler());
+//        过河拆桥,借用ChannelInit 把MyInHandler 加进通道，用完就没有用了
+        ctx.pipeline().remove(this);
+
+    }
+}
+
+/*
+* 读写数据的Handler是用户自己实现的，目前是acceptHandler的属性，不能让用户放弃属性的操作
+* @ChannelHandler.Sharable 不应该强压给coder（客户端）
+* */
+//@ChannelHandler.Sharable
 class MyInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
@@ -137,13 +155,12 @@ class MyInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        System.out.println("channel read");
+//        System.out.println("channel read");
         ByteBuf buf = (ByteBuf) msg;
 //        readCharSequence()会移动 Bytebuf 的指针，getCharSequence()不移动指针，指针还在原来的位置可以重复读取
 //        CharSequence result = buf.readCharSequence(buf.readableBytes(), CharsetUtil.UTF_8);
         CharSequence result = buf.getCharSequence(0,buf.readableBytes(), CharsetUtil.UTF_8);
         System.out.println(result);
-
         ctx.writeAndFlush(buf);
 
 
@@ -168,13 +185,13 @@ class MyAcceptHandler extends ChannelInboundHandlerAdapter{
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
 //        服务端实时监听listen socket 接收accept 客户端client
         SocketChannel client = (SocketChannel) msg;
-//        注册，得到了客户端也需要注册等事情
-        selector.register(client);
 //        响应式handler
         ChannelPipeline pipeline = client.pipeline();
 //        把链接的客户端加入到通道
         pipeline.addLast(handler);
 
+//        注册，得到了客户端也需要注册等事情
+        selector.register(client);
 
     }
 }
