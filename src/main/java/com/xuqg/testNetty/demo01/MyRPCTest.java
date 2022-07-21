@@ -17,11 +17,11 @@ public class MyRPCTest {
     public void get(){
         Car car = proxyGet(Car.class) ;
 //            动态代理实现
-            System.out.println("car is running...");
+            car.run("car is running ... ");
 
         Plane plane = proxyGet(Plane.class);
 //            动态代理实现
-            System.out.println("plane is flying...");
+            plane.fly("plane is flying ... ");
 
     }
 
@@ -102,9 +102,9 @@ class MyContent {
 }
 
 interface Car{
-    void run();
+    void run(String info);
 }
 
 interface Plane{
-    void fly();
+    void fly(String info);
 }
