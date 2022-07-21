@@ -1,5 +1,7 @@
 package com.xuqg.testNetty.demo01;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
@@ -106,7 +108,7 @@ public class MyByteBuf {
     }
 
     @Test
-    public void nettyServerTest() throws Exception {
+    public void serverTest() throws Exception {
         NioEventLoopGroup serverGroup = new NioEventLoopGroup(1);
         NioServerSocketChannel server = new NioServerSocketChannel();
         serverGroup.register(server);
@@ -120,7 +122,56 @@ public class MyByteBuf {
         System.out.println("server close");
     }
 
+
+    @Test
+    public void nettyClientTest() throws InterruptedException {
+        NioEventLoopGroup group = new NioEventLoopGroup(1);
+        Bootstrap bootstrap = new Bootstrap();
+        ChannelFuture connect = bootstrap.group(group)
+                .channel(NioSocketChannel.class)
+//                .handler(new ChannelInit())
+                .handler(new ChannelInitializer<SocketChannel>() {
+
+                    @Override
+                    protected void initChannel(SocketChannel socketChannel) throws Exception {
+                        ChannelPipeline pipeline = socketChannel.pipeline();
+                        pipeline.addLast(new MyInHandler());
+
+                    }
+                })
+                .connect("192.168.134.161", 9999);
+// 获取客户端
+        Channel client = connect.sync().channel();
+        ByteBuf byteBuf = Unpooled.copiedBuffer("hello server".getBytes());
+//        发送数据
+        ChannelFuture send = client.writeAndFlush(byteBuf);
+        send.sync();
+
+        client.closeFuture().sync();
+
+
+    }
+
+    @Test
+    public void nettyServerTest() throws InterruptedException {
+        NioEventLoopGroup group = new NioEventLoopGroup(1);
+        ServerBootstrap server = new ServerBootstrap();
+        ChannelFuture bind = server.group(group, group)
+                .channel(NioServerSocketChannel.class)
+//                .childHandler(new MyInHandler())
+                .childHandler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                        ChannelPipeline pipeline = nioSocketChannel.pipeline();
+                        pipeline.addLast(new MyInHandler());
+                    }
+                }).bind(new InetSocketAddress("192.168.31.120", 9999));
+        bind.sync().channel().closeFuture().sync();
+
+    }
 }
+
+
 
 //这个类是引荐人角色，负责把客户端定义的handler注册到pipeline就完事了，如果不用它，myinhandler就得设计成单例
 @ChannelHandler.Sharable
