@@ -133,6 +133,8 @@ class ChannelInit extends ChannelInboundHandlerAdapter {
 //        过河拆桥,借用ChannelInit 把MyInHandler 加进通道，用完就没有用了
         ctx.pipeline().remove(this);
 
+
+
     }
 }
 
