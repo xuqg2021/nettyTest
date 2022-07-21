@@ -15,14 +15,14 @@ import java.lang.reflect.Proxy;
  */
 public class MyRPCTest {
     public void get(){
-        Car car = proxyGet(Car.class) {
+        Car car = proxyGet(Car.class) ;
 //            动态代理实现
             System.out.println("car is running...");
-        };
-        Plane plane = proxyGet(Plane.class) {
+
+        Plane plane = proxyGet(Plane.class);
 //            动态代理实现
             System.out.println("plane is flying...");
-        }
+
     }
 
     public static <T>T proxyGet(Class<T> interfaceInfo) {
