@@ -122,7 +122,7 @@ public class MyByteBuf {
     }
 
 }
-
+@ChannelHandler.Sharable
 class MyInHandler extends ChannelInboundHandlerAdapter {
 
     @Override
@@ -149,7 +149,7 @@ class MyInHandler extends ChannelInboundHandlerAdapter {
 
     }
 }
-@ChannelHandler.Sharable
+
 class MyAcceptHandler extends ChannelInboundHandlerAdapter{
     private EventLoopGroup selector;
     private ChannelHandler handler;
