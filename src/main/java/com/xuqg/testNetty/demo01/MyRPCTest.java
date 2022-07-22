@@ -1,10 +1,12 @@
 package com.xuqg.testNetty.demo01;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.*;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 
-import java.io.ByteArrayOutputStream;
-import java.io.ObjectOutputStream;
-import java.io.Serializable;
+import java.io.*;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -67,6 +69,8 @@ public class MyRPCTest {
 // 远端调用可能是并发的，为了区分收到的消息是哪个客户端发来的，
 // 给消息加一个ID前缀（requestID+message），  本地要缓存ID，
 // 连接池：多线程使用连接池 管理连接，
+                ClientFactory factory = new ClientFactory();
+                factory.getClient(new InetSocketAddress("localhost",9999));
 
 
 
@@ -142,7 +146,7 @@ interface Plane{
     void fly(String info);
 }
 // 协议头类
-class MyHeader{
+class MyHeader implements Serializable{
 // 通信协议
     /*
     * 三个部分
@@ -190,11 +194,6 @@ class ClientPool{
         for (Object o : lock) {
             o = new Object();
         }
-
-    }
-
-    public NioSocketChannel create(InetSocketAddress address) {
-
     }
 }
 
@@ -202,6 +201,8 @@ class ClientPool{
 class ClientFactory{
     int poolSize = 1;
     Random rand;
+    NioEventLoopGroup clientWorker;
+
     private static final ClientFactory factory;
     static{
         factory = new ClientFactory();
@@ -223,8 +224,62 @@ class ClientFactory{
             return clientPool.clients[i];
         }
         synchronized (clientPool.lock[i]){
-            return clientPool.create(address);
+            return clientPool.clients[i] = create(address);
         }
+
     }
 
+    private NioSocketChannel create(InetSocketAddress address) {
+//        基于netty的客户端创建方式
+        clientWorker = new NioEventLoopGroup(1);
+        Bootstrap bs = new Bootstrap();
+        ChannelFuture connect = bs.group(clientWorker)
+                .channel(NioSocketChannel.class)
+                .handler(new ChannelInitializer<NioSocketChannel>() {
+                    @Override
+                    protected void initChannel(NioSocketChannel nioSocketChannel) throws Exception {
+                        ChannelPipeline pipeline = nioSocketChannel.pipeline();
+                        pipeline.addLast(new ClientResponse());
+                    }
+                }).connect(address);
+        try {
+            NioSocketChannel client = (NioSocketChannel) connect.sync().channel();
+            return client;
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+
+        return null;
+
+    }
+
+}
+// consumer
+class ClientResponse extends ChannelInboundHandlerAdapter {
+
+    @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        ByteBuf buf = (ByteBuf) msg;
+        if(buf.readableBytes() >= 160){
+            byte[] bytes = new byte[160];
+            buf.readBytes(bytes);
+            ByteArrayInputStream in = new ByteArrayInputStream(bytes);
+            ObjectInputStream oin = new ObjectInputStream(in);
+            MyHeader header = (MyHeader) oin.readObject();
+            System.out.println(header.getDatalen());
+            if(buf.readableBytes() >= header.getDatalen()){
+                byte[] data = new byte[(int) header.getDatalen()];
+                buf.readBytes(data);
+                ByteArrayInputStream din = new ByteArrayInputStream(data);
+                ObjectInputStream doin = new ObjectInputStream(din);
+                MyContent content = (MyContent) doin.readObject();
+                System.out.println(content.getName());
+                System.out.println(header.requestID);
+//                TODO:有了requestID 才能找到对应的线程，根据它继续处理业务
+
+            }
+        }
+
+    }
 }
